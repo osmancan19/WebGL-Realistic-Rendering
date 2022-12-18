@@ -1,0 +1,297 @@
+<html>
+
+<script id="vertex-shader" type="x-shader/x-vertex">
+
+	attribute vec4 a_position;
+	attribute vec3 a_normal;
+	varying vec4 f_a_position;	
+	varying vec3 f_a_normal;
+	
+	
+	uniform mat4 u_projection;
+	uniform mat4 u_view;
+	uniform mat4 u_world;
+  
+	varying vec3 v_worldPosition;
+	varying vec3 v_worldNormal;
+  	  
+	uniform vec4 ambientProduct, diffuseProduct, specularProduct;
+	uniform vec4 lightPosition;
+	uniform float shininess;
+	varying vec4 fColor;
+	
+	uniform float shadingType;
+    void main(void) {
+	
+		gl_PointSize = 2.0;  // Inserted in part 6
+
+		gl_Position = u_projection * u_view * u_world * a_position;
+		
+		// send the view position to the fragment shader
+		v_worldPosition = (u_world * a_position).xyz;
+		
+		// orient the normals and pass to the fragment shader
+		v_worldNormal = mat3(u_world) * a_normal;
+		
+		f_a_position = a_position;	
+		f_a_normal = a_normal;
+		
+		if(shadingType == 0.0)
+		{
+			vec3 pos = -(u_view * a_position).xyz;
+			//fixed light position
+			
+			vec3 light = lightPosition.xyz;
+			vec3 L = normalize( light - pos );
+			vec3 E = normalize( -pos );
+			vec3 H = normalize( L + E );
+			
+			vec4 NN = vec4(a_normal,0);
+
+			vec3 N = normalize( (u_view*NN).xyz);
+
+			// Compute terms in the illumination equation
+			vec4 ambient = ambientProduct;
+
+			float Kd = max( dot(L, N), 0.0 );
+			vec4  diffuse = Kd*diffuseProduct;
+
+			float Ks = pow( max(dot(N, H), 0.0), shininess );
+			vec4  specular = Ks * specularProduct;
+			
+			if( dot(L, N) < 0.0 ) {
+				specular = vec4(0.0, 0.0, 0.0, 1.0);
+			} 
+			fColor = ambient + diffuse +specular;
+		}
+		
+    }
+</script>
+
+<script id="fragment-shader" type="x-shader/x-fragment">
+  precision highp float;
+  varying vec4 f_a_position;	
+  varying vec3 f_a_normal;
+  uniform mat4 u_view;
+  varying vec3 v_worldPosition;
+  varying vec3 v_worldNormal;
+  
+
+  uniform samplerCube u_texture;
+  uniform vec4 ambientProduct, diffuseProduct, specularProduct;
+  uniform vec4 lightPosition;
+  uniform float shininess;
+  // The position of the camera
+  uniform vec3 u_worldCameraPosition;
+  varying vec4 fColor;
+  uniform float shadingType;
+  void main() {
+	vec3 worldNormal = normalize(v_worldNormal);
+	vec3 eyeToSurfaceDir = normalize(v_worldPosition - u_worldCameraPosition);
+	vec3 direction = reflect(eyeToSurfaceDir,worldNormal);
+	if(shadingType == 0.0)
+		gl_FragColor = textureCube(u_texture, direction)*fColor;
+	else if(shadingType == 1.0)
+    {
+		vec3 pos = -(u_view * f_a_position).xyz;
+		//fixed light position
+			
+		vec3 light = lightPosition.xyz;
+		vec3 L = normalize( light - pos );
+
+			
+		vec3 E = normalize( -pos );
+		vec3 H = normalize( L + E );
+			
+		vec4 NN = vec4(f_a_normal,0);
+
+		vec3 N = normalize( (u_view*NN).xyz);
+
+		// Compute terms in the illumination equation
+		vec4 ambient = ambientProduct;
+
+		float Kd = max( dot(L, N), 0.0 );
+		vec4  diffuse = Kd*diffuseProduct;
+
+		float Ks = pow( max(dot(N, H), 0.0), shininess );
+		vec4  specular = Ks * specularProduct;
+			
+		if( dot(L, N) < 0.0 ) {
+				specular = vec4(0.0, 0.0, 0.0, 1.0);
+		} 
+		gl_FragColor = textureCube(u_texture, direction)*(ambient + diffuse +specular);
+	}
+    else
+		gl_FragColor = textureCube(u_texture, direction);
+  }
+</script>
+
+<script type="text/javascript" src="webgl-utils.js"></script>
+<script type="text/javascript" src="InitShaders.js"></script>
+<script type="text/javascript" src="MV.js"></script>
+<script type="text/javascript" src="figure.js"></script>
+<script type="text/javascript" src="m4.js"></script>
+
+<body>
+  <canvas id="gl-canvas" width="650" height=" 650">
+    Oops ... your browser doesn't support the HTML5 canvas element
+  </canvas>
+
+  <p>Click on the Knot to stop rendering.</p>
+  <p>
+  <div style='display:inline-block;'>Drawing Style:</div>
+	  <select id='rendering'>
+		<option selected="selected">TRIANGLE_STRIP
+		<option>TRIANGLE_FAN
+		<option>TRIANGLES
+		<option>LINE_STRIP
+		<option>LINE_LOOP
+		<option>LINES
+		<option>POINTS
+			<option>WIREFRAME
+	  </select>
+  </div>
+  </p>
+  <p>
+  <div style='display:inline-block;'>a0</div>
+	  <select id='a0'>
+		<option>8.0
+		<option>6.0
+		<option selected="selected">4.0
+		<option>2.0
+	  </select>
+  </div>
+  <div style='display:inline-block;'>a1</div>
+	  <select id='a1'>
+		<option>4.0
+		<option>3.0
+		<option selected="selected">2.0
+		<option>1.0
+	  </select>
+  </div>
+  <div style='display:inline-block;'>a2</div>
+	  <select id='a2'>
+		<option>3.0
+		<option>1.5
+		<option selected="selected">1.0
+		<option>0.5
+	  </select>
+  </div>
+  <div style='display:inline-block;'>a3</div>
+	  <select id='a3'>
+		<option>3.0
+		<option>1.5
+		<option selected="selected">0.6
+		<option>0.3
+	  </select>
+  </div>
+  <div style='display:inline-block;'>a4</div>
+	  <select id='a4'>
+		<option>11
+		<option>8
+		<option selected="selected">5
+		<option>3
+	  </select>
+  </div>
+  <br />
+  <br />
+  <div style='display:inline-block;padding-left:0.2em;'>a5</div>
+	  <select id='a5'>
+		<option>3
+		<option>2
+		<option>1
+		<option selected="selected">0.75
+		<option>0.3
+	  </select>
+  </div>
+  <div style='display:inline-block;padding-left:0.2em;'>a6</div>
+	  <select id='a6'>
+		<option>30
+		<option>20
+		<option>15
+		<option selected="selected">10
+		<option>5
+	  </select>
+  </div>
+  <div style='display:inline-block;padding-left:0.2em;'>a7</div>
+	  <select id='a7'>
+		<option>2
+		<option>1
+		<option>0.7
+		<option selected="selected">0.35
+		<option>0.1
+	  </select>
+  </div>
+  <div style='display:inline-block;padding-left:0.2em;'>Equation parts</div>
+	  <select id='a8'>
+		<option>1000
+		<option>500
+		<option selected="selected">200
+		<option>100
+		<option>75
+		<option>50
+		<option>25
+	  </select>
+  </div>
+  <div style='display:inline-block;padding-left:0.2em;'>Pipe parts</div>
+	  <select id='a9'>
+		<option>500
+		<option>100
+		<option selected="selected">50
+		<option>20
+		<option>10
+		<option>5
+		<option>3
+	  </select>
+  </div>
+  </p>
+  <p>
+  <div style='display:inline-block;'>Scaling:</div>
+	  <select id='s'>
+		<option>1.5
+		<option>1.0
+		<option>0.7
+		<option>0.4
+		<option selected="selected">0.25
+		<option>0.2
+		<option>0.18
+		<option>0.16
+		<option>0.14
+		<option>0.12
+		<option> 0.1
+		<option>0.09
+		<option>0.08
+		<option>0.07
+		<option>0.06
+		<option>0.05
+	  </select>
+  </div>
+  <div style='display:inline-block;'>Shading Type:</div>
+	  <select id='shadingType'>
+		<option selected="selected">Gouraud
+		<option>Phong
+		<option>No Shading
+	  </select>
+  </div>  <br />
+  
+  <div id="lightPositionX">
+        Light Position X axis -200 <input id="slide" type="range"   min="-200"
+            max="200" step="10" value="0" /> 200 &nbsp;&nbsp; <label id="lightPositionX"></label><br>
+  </div><br />
+  <div id="lightPositionY">
+        Light Position Y axis -200 <input id="slide" type="range"   min="-200"
+            max="200" step="10" value="0" /> 200 &nbsp;&nbsp; <label id="lightPositionY"></label><br>
+  </div><br />
+  <div id="lightPositionZ">
+        Light Position Z axis -200 <input id="slide" type="range"   min="-200"
+            max="200" step="10" value="0" /> 200 &nbsp;&nbsp; <label id="lightPositionZ"></label><br>
+  </div><br />
+  <div id="shineninessVal">
+	Shininess 0 <input id="slide" type="range"   min="0"
+		max="100" step="1" value="30" /> 100 &nbsp;&nbsp; <label id="shineninessVal"></label><br>
+</div><br />
+  <br />
+  </p>
+</body>
+
+</html>
